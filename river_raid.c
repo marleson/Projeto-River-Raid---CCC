@@ -8,15 +8,15 @@
 //   Opção A (usa a ncurses e gcc):
 //     gcc river_raid.c  -o river_raid -lncurses
 //   Opção B (usa a ncurses do sistema):
-//     clang -std=c11 -Wall -Wextra -O2 main.c -lncurses -o river_raid_term
+//     clang -std=c11 -Wall -Wextra -O2 river_raid.c -lncurses -o river_raid
 //   Opção C (se precisar da do Homebrew):
 //     clang -std=c11 -Wall -Wextra -O2 \
 //       -I"$(brew --prefix)/opt/ncurses/include" \
 //       -L"$(brew --prefix)/opt/ncurses/lib" \
 //       -Wl,-rpath,"$(brew --prefix)/opt/ncurses/lib" \
-//       main.c -lncurses -o river_raid_term
+//       river_raid.c -lncurses -o river_raid
 // Executar:
-//     ./river_raid_term
+//     ./river_raid
 // ================================================================
 
 #include <ncurses.h> // biblioteca para desenhar no terminal
