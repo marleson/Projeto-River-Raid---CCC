@@ -160,7 +160,7 @@ static void iniciarNcurses(void)
     }
 
     // Define larguras mínima e máxima do rio baseadas no tamanho da tela
-    LARGURA_MIN = LARGURA / 5; // mais estreito permitido (talvez melhor 3)
+    LARGURA_MIN = LARGURA / 3; // mais estreito permitido (talvez melhor 3)
     LARGURA_MAX = LARGURA / 2; // mais largo permitido
 
     // Aloca os vetores das margens (um valor por linha)
