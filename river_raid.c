@@ -1,6 +1,6 @@
 // ================================================================
 // River Raid (versão de terminal) — C + ncurses
-// NÍVEL: Iniciante
+// NÍVEL: Iniciante 
 // Objetivo: Criar um jogo simples de River Raid no terminal usando C e ncurses.
 //           O jogo envolve um jogador (avião) que deve navegar por um rio, evitando as margens.
 // Controles: ←/→  ou  A/D  para mover;  R para reiniciar;  Q para sair
