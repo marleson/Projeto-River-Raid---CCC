@@ -34,7 +34,7 @@ typedef struct
     int y;      // linha (vertical)
     int vivo;   // 1 = vivo; 0 = morto (colisão)
     long score; // pontuação simples: conta linhas percorridas
-} Player;
+} Player; 
 
 // Dimensões atuais do terminal (serão lidas na inicialização)
 static int LARGURA = 0; // número de colunas
