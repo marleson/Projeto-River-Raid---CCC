@@ -16,7 +16,7 @@
 //       -Wl,-rpath,"$(brew --prefix)/opt/ncurses/lib" \
 //       river_raid.c -lncurses -o river_raid
 // Executar:
-//     ./river_raid
+//     ./river_raid      
 // ================================================================
 
 #include <ncurses.h> // biblioteca para desenhar no terminal
