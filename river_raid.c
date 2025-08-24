@@ -16,7 +16,7 @@
 //       -Wl,-rpath,"$(brew --prefix)/opt/ncurses/lib" \
 //       river_raid.c -lncurses -o river_raid
 // Executar:
-//     ./river_raid
+//     ./river_raid      
 // ================================================================
 
 #include <ncurses.h> // biblioteca para desenhar no terminal
@@ -34,7 +34,20 @@ typedef struct
     int y;      // linha (vertical)
     int vivo;   // 1 = vivo; 0 = morto (colisão)
     long score; // pontuação simples: conta linhas percorridas
-} Player;
+} Player; 
+
+// Representa os inimigos
+typedef struct 
+{
+    int x;    
+    int y;     
+    int vivo;
+} Inimigo;
+
+// Maximo de inimigos 
+static const int INIMIGOS_MAX = 20;
+static Inimigo inimigos[INIMIGOS_MAX];
+
 
 // Dimensões atuais do terminal (serão lidas na inicialização)
 static int LARGURA = 0; // número de colunas
@@ -44,6 +57,7 @@ static int ALTURA = 0;  // número de linhas
 // Para cada y (linha), temos:
 //   margemEsq[y]  = posição da margem esquerda
 //   margemDir[y]  = posição da margem direita
+
 static int *margemEsq = NULL;
 static int *margemDir = NULL;
 
@@ -64,7 +78,8 @@ static void criarRioInicial(void);
 static void gerarNovaLinhaNoTopo(void);
 static void desenharTudo(const Player *p);
 static int haColisao(const Player *p);
-static void reiniciarJogo(Player *p);
+static void IniciarInimigos(void);
+static void ReiniciarInimigos(void);
 
 // ================================================================
 // FUNÇÃO PRINCIPAL
@@ -312,4 +327,15 @@ static void reiniciarJogo(Player *p)
     p->y = ALTURA - 4;  // um pouco acima do rodapé
     p->vivo = 1;        // jogador está vivo
     p->score = 0;       // zera pontuação
+
+    ReiniciarInimigos();
 }
+// Reiniciar os inimigos
+static void ReiniciarInimigos(void)
+{
+    for (int i = 0;i < INIMIGOS_MAX;i++)
+    {
+         inimigos[i].vivo = 0; 
+    }
+}
+
