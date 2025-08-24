@@ -23,6 +23,7 @@
 #include <stdlib.h>  // malloc, free, rand
 #include <time.h>    // time (semente do rand)
 #include <unistd.h>  // usleep (pausa em microsegundos)
+#include <stdio.h>   
 
 // ----------------------------
 // ESTRUTURAS DE DADOS SIMPLES
@@ -45,7 +46,7 @@ typedef struct
 } Inimigo;
 
 // Maximo de inimigos 
-static const int INIMIGOS_MAX = 20;
+#define INIMIGOS_MAX  20
 static Inimigo inimigos[INIMIGOS_MAX];
 
 
@@ -78,8 +79,8 @@ static void criarRioInicial(void);
 static void gerarNovaLinhaNoTopo(void);
 static void desenharTudo(const Player *p);
 static int haColisao(const Player *p);
-static void IniciarInimigos(void);
 static void ReiniciarInimigos(void);
+static void reiniciarJogo(Player *p);
 
 // ================================================================
 // FUNÇÃO PRINCIPAL
@@ -121,6 +122,33 @@ int main(void)
 
             // Faz o MUNDO descer uma linha e gera uma nova no topo
             gerarNovaLinhaNoTopo();
+
+            // faz os inimigos que nasceram descerem uma linha
+            for (int i = 0; i < INIMIGOS_MAX;i++)
+            {
+                if (inimigos[i].vivo)
+                {
+                    inimigos [i].y++;
+                    if (inimigos[i].y >= ALTURA)
+                       inimigos[i].vivo = 0;
+                }
+            }
+        
+            // Chance de nascer um inimigo na tela
+            if (rand() % 100 < 5)
+            {
+               for (int i = 0;i < INIMIGOS_MAX;i++)
+                {
+                if (!inimigos[i].vivo)
+                   {
+                    inimigos[i].vivo = 1;
+                    inimigos[i].y = 0;
+                    inimigos[i].x = margemEsq[0] + 1 + rand()% (margemDir[0] - margemEsq[0] - 2);
+                    break;
+                   }
+                } 
+            }
+
             jogador.score++; // andou mais uma linha → ganha pontos
 
             // Verifica colisão com as margens do rio
@@ -295,6 +323,13 @@ static void desenharTudo(const Player *p)
         }
     }
 
+    // Desenha o inimigo
+    for (int i = 0;i < INIMIGOS_MAX; i++)
+    {
+        if (inimigos[i].vivo)
+        mvaddch(inimigos[i].y, inimigos[i].x, 'V');
+    }
+
     // Desenha o jogador: '^' se vivo, 'X' se morto
     if (p->vivo)
         mvaddch(p->y, p->x, '^');
@@ -316,7 +351,15 @@ static int haColisao(const Player *p)
     // Se a posição X do jogador for MENOR/IGUAL à margem esquerda
     // ou MAIOR/IGUAL à margem direita da linha onde ele está,
     // então houve colisão.
-    return (p->x <= margemEsq[p->y]) || (p->x >= margemDir[p->y]);
+     if (p->x <= margemEsq[p->y] || p->x >= margemDir[p->y])
+        return 1;
+        
+    //Checa colisão com o inimigo
+    for (int i = 0;i < INIMIGOS_MAX;i++)
+    {
+        if (inimigos[i].vivo && inimigos[i].x == p->x && inimigos[i].y == p->y)
+        return 1;
+    }
 }
 
 // Reinicia o estado do jogo (novo rio, jogador vivo no mesmo lugar)
