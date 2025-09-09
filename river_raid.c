@@ -373,21 +373,55 @@ static void desenharTudo(const Player *p)
     refresh();
 }
 
-// Verifica se o jogador bateu na margem do rio
+// Verifica se o jogador bateu na margem do rio ou em inimigos
 static int haColisao(const Player *p)
 {
-    // Se a posição X do jogador for MENOR/IGUAL à margem esquerda
-    // ou MAIOR/IGUAL à margem direita da linha onde ele está,
-    // então houve colisão.
-    if (p->x <= margemEsq[p->y] || p->x >= margemDir[p->y])
-        return 1;
-
-    // Checa colisão com o inimigo
-    for (int i = 0; i < INIMIGOS_MAX; i++)
+    // 1) Avião x margens do rio
+    for (int r = 0; r < AVIAO_H; r++)
     {
-        if (inimigos[i].vivo && inimigos[i].x == p->x && inimigos[i].y == p->y)
-            return 1;
+        int y = p->y + r;
+        if (y < 0 || y >= ALTURA)
+            continue; // fora da tela, ignora (segurança)
+
+        for (int c = 0; c < AVIAO_W; c++)
+        {
+            char ch = AVIAO[r][c];
+            if (ch == ' ')
+                continue; // células vazias do sprite não colidem
+
+            int x = p->x + c; // posição real na tela desta célula
+            // se esta célula do avião invadiu a margem, colidiu
+            if (x <= margemEsq[y] || x >= margemDir[y])
+            {
+                return 1;
+            }
+        }
     }
+
+    // 2) Avião x inimigos (inimigo é 1x1 em (x, y))
+    for (int r = 0; r < AVIAO_H; r++)
+    {
+        int y = p->y + r;
+        if (y < 0 || y >= ALTURA)
+            continue;
+
+        for (int c = 0; c < AVIAO_W; c++)
+        {
+            char ch = AVIAO[r][c];
+            if (ch == ' ')
+                continue;
+
+            int x = p->x + c;
+            for (int i = 0; i < INIMIGOS_MAX; i++)
+            {
+                if (inimigos[i].vivo && inimigos[i].x == x && inimigos[i].y == y)
+                {
+                    return 1; // encostou em qualquer parte do avião
+                }
+            }
+        }
+    }
+
     return 0; // sem colisão
 }
 
