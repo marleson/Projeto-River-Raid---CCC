@@ -1,6 +1,6 @@
 // ================================================================
 // River Raid (versão de terminal) — C + ncurses
-// NÍVEL: Iniciante 
+// NÍVEL: Iniciante
 // Objetivo: Criar um jogo simples de River Raid no terminal usando C e ncurses.
 //           O jogo envolve um jogador (avião) que deve navegar por um rio, evitando as margens.
 // Controles: ←/→  ou  A/D  para mover;  R para reiniciar;  Q para sair
@@ -23,6 +23,7 @@
 #include <stdlib.h>  // malloc, free, rand
 #include <time.h>    // time (semente do rand)
 #include <unistd.h>  // usleep (pausa em microsegundos)
+#include <stdio.h>
 
 // ----------------------------
 // ESTRUTURAS DE DADOS SIMPLES
@@ -35,6 +36,18 @@ typedef struct
     int vivo;   // 1 = vivo; 0 = morto (colisão)
     long score; // pontuação simples: conta linhas percorridas
 } Player;
+
+// Representa os inimigos
+typedef struct
+{
+    int x;
+    int y;
+    int vivo;
+} Inimigo;
+
+// Maximo de inimigos
+#define INIMIGOS_MAX 20
+static Inimigo inimigos[INIMIGOS_MAX];
 
 // Dimensões atuais do terminal (serão lidas na inicialização)
 static int LARGURA = 0; // número de colunas
@@ -64,6 +77,7 @@ static void criarRioInicial(void);
 static void gerarNovaLinhaNoTopo(void);
 static void desenharTudo(const Player *p);
 static int haColisao(const Player *p);
+static void ReiniciarInimigos(void);
 static void reiniciarJogo(Player *p);
 
 // ================================================================
@@ -106,6 +120,33 @@ int main(void)
 
             // Faz o MUNDO descer uma linha e gera uma nova no topo
             gerarNovaLinhaNoTopo();
+
+            // faz os inimigos que nasceram descerem uma linha
+            for (int i = 0; i < INIMIGOS_MAX; i++)
+            {
+                if (inimigos[i].vivo)
+                {
+                    inimigos[i].y++;
+                    if (inimigos[i].y >= ALTURA)
+                        inimigos[i].vivo = 0;
+                }
+            }
+
+            // Chance de nascer um inimigo na tela
+            if (rand() % 100 < 5)
+            {
+                for (int i = 0; i < INIMIGOS_MAX; i++)
+                {
+                    if (!inimigos[i].vivo)
+                    {
+                        inimigos[i].vivo = 1;
+                        inimigos[i].y = 0;
+                        inimigos[i].x = margemEsq[0] + 1 + rand() % (margemDir[0] - margemEsq[0] - 2);
+                        break;
+                    }
+                }
+            }
+
             jogador.score++; // andou mais uma linha → ganha pontos
 
             // Verifica colisão com as margens do rio
@@ -280,6 +321,13 @@ static void desenharTudo(const Player *p)
         }
     }
 
+    // Desenha o inimigo
+    for (int i = 0; i < INIMIGOS_MAX; i++)
+    {
+        if (inimigos[i].vivo)
+            mvaddch(inimigos[i].y, inimigos[i].x, 'V');
+    }
+
     // Desenha o jogador: '^' se vivo, 'X' se morto
     if (p->vivo)
         mvaddch(p->y, p->x, '^');
@@ -301,18 +349,16 @@ static int haColisao(const Player *p)
     // Se a posição X do jogador for MENOR/IGUAL à margem esquerda
     // ou MAIOR/IGUAL à margem direita da linha onde ele está,
     // então houve colisão.
-     if (p->x <= margemEsq[p->y] || p->x >= margemDir[p->y])
+    if (p->x <= margemEsq[p->y] || p->x >= margemDir[p->y])
         return 1;
-        
-    //Checa colisão com o inimigo
-    for (int i = 0;i < INIMIGOS_MAX;i++)
+
+    // Checa colisão com o inimigo
+    for (int i = 0; i < INIMIGOS_MAX; i++)
     {
         if (inimigos[i].vivo && inimigos[i].x == p->x && inimigos[i].y == p->y)
-        return 1;
+            return 1;
     }
-
     return 0; // sem colisão
-    return (p->x <= margemEsq[p->y]) || (p->x >= margemDir[p->y]);
 }
 
 // Reinicia o estado do jogo (novo rio, jogador vivo no mesmo lugar)
@@ -323,4 +369,14 @@ static void reiniciarJogo(Player *p)
     p->y = ALTURA - 4;  // um pouco acima do rodapé
     p->vivo = 1;        // jogador está vivo
     p->score = 0;       // zera pontuação
+
+    ReiniciarInimigos();
+}
+// Reiniciar os inimigos
+static void ReiniciarInimigos(void)
+{
+    for (int i = 0; i < INIMIGOS_MAX; i++)
+    {
+        inimigos[i].vivo = 0;
+    }
 }
