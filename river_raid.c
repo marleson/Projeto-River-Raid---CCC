@@ -301,6 +301,17 @@ static int haColisao(const Player *p)
     // Se a posição X do jogador for MENOR/IGUAL à margem esquerda
     // ou MAIOR/IGUAL à margem direita da linha onde ele está,
     // então houve colisão.
+     if (p->x <= margemEsq[p->y] || p->x >= margemDir[p->y])
+        return 1;
+        
+    //Checa colisão com o inimigo
+    for (int i = 0;i < INIMIGOS_MAX;i++)
+    {
+        if (inimigos[i].vivo && inimigos[i].x == p->x && inimigos[i].y == p->y)
+        return 1;
+    }
+
+    return 0; // sem colisão
     return (p->x <= margemEsq[p->y]) || (p->x >= margemDir[p->y]);
 }
 
