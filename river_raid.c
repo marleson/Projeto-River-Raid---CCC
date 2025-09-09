@@ -60,6 +60,17 @@ static int ALTURA = 0;  // número de linhas
 static int *margemEsq = NULL;
 static int *margemDir = NULL;
 
+// ----------------------------
+// SPRITE ASCII do avião (âncora no topo-esquerdo: p->x, p->y)
+// Você pode ALTERAR as 3 linhas abaixo para mudar o desenho.
+// IMPORTANTE: use apenas caracteres ASCII de largura 1 (evita desalinhamento).
+#define AVIAO_H 3
+#define AVIAO_W 5
+static const char *AVIAO[AVIAO_H] = {
+    "  ^  ",
+    "<-A->",
+    " / \\ "};
+
 // Parâmetros da largura do rio (em colunas)
 static int LARGURA_MIN = 0; // rio nunca fica mais estreito que isso
 static int LARGURA_MAX = 0; // nem mais largo que isso
@@ -76,6 +87,7 @@ static void finalizarNcurses(void);
 static void criarRioInicial(void);
 static void gerarNovaLinhaNoTopo(void);
 static void desenharTudo(const Player *p);
+static void desenharAviao(const Player *p); // novo: desenha o avião multi-caracteres
 static int haColisao(const Player *p);
 static void ReiniciarInimigos(void);
 static void reiniciarJogo(Player *p);
@@ -112,11 +124,12 @@ int main(void)
             if (ch == KEY_RIGHT || ch == 'd' || ch == 'D')
                 jogador.x++;
 
-            // Mantém o jogador dentro da tela (1 até LARGURA-2)
+            // Mantém o jogador dentro da tela, levando em conta a LARGURA do sprite
             if (jogador.x < 1)
                 jogador.x = 1;
-            if (jogador.x > LARGURA - 2)
-                jogador.x = LARGURA - 2;
+            int maxX = LARGURA - AVIAO_W - 1; // -1: reserva a última coluna sólida
+            if (jogador.x > maxX)
+                jogador.x = maxX;
 
             // Faz o MUNDO descer uma linha e gera uma nova no topo
             gerarNovaLinhaNoTopo();
@@ -294,6 +307,25 @@ static void gerarNovaLinhaNoTopo(void)
 }
 
 // Desenha todo o conteúdo na tela: rio, HUD e jogador
+// Desenha o avião como um conjunto de caracteres (sprite ASCII)
+static void desenharAviao(const Player *p)
+{
+    // Percorremos cada linha (r) e coluna (c) do SPRITE
+    for (int r = 0; r < AVIAO_H; r++)
+    {
+        int y = p->y + r; // linha absoluta na tela
+        for (int c = 0; c < AVIAO_W; c++)
+        {
+            char ch = AVIAO[r][c];
+            if (ch == ' ')
+                continue;     // espaços não são desenhados
+            int x = p->x + c; // coluna absoluta na tela
+            // Se o jogador estiver morto, desenhamos 'X' no lugar
+            mvaddch(y, x, p->vivo ? ch : 'X');
+        }
+    }
+}
+
 static void desenharTudo(const Player *p)
 {
     erase(); // limpa a tela virtual (ncurses usa double-buffering)
@@ -329,10 +361,8 @@ static void desenharTudo(const Player *p)
     }
 
     // Desenha o jogador: '^' se vivo, 'X' se morto
-    if (p->vivo)
-        mvaddch(p->y, p->x, '^');
-    else
-        mvaddch(p->y, p->x, 'X');
+    // Desenha o avião (sprite ASCII multi-caracteres)
+    desenharAviao(p);
 
     // HUD (informações no topo)
     mvprintw(0, 2, "SCORE: %ld  %s",
