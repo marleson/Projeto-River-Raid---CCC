@@ -76,6 +76,14 @@ static const char *AVIAO[AVIAO_H] = {
     "<-A->",
     " / \\ "};
 
+#define INIMIGO_H 3
+#define INIMIGO_W 5
+
+static const char *INIMIGO[INIMIGO_H] = {
+    " ||| ",
+    "\\|||/",
+    " === "};
+
 static int LARGURA_MIN = 0;
 static int LARGURA_MAX = 0;
 
@@ -111,6 +119,9 @@ int main(void)
     Player jogador;
     reiniciarJogo(&jogador);
 
+    int contadorSpawn = 0;
+    int limiteSpawn = 1;
+
     while (1)
     {
         int ch = getch();
@@ -144,19 +155,22 @@ int main(void)
                 }
             }
 
-            if (rand() % 100 < 5)
+            contadorSpawn++;
+            if (contadorSpawn > limiteSpawn)
             {
+                contadorSpawn = 0;
                 for (int i = 0; i < INIMIGOS_MAX; i++)
                 {
                     if (!inimigos[i].vivo)
                     {
                         inimigos[i].vivo = 1;
                         inimigos[i].y = 0;
-                        inimigos[i].x = margemEsq[0] + 1 + rand() % (margemDir[0] - margemEsq[0] - 2);
+                        inimigos[i].x = margemEsq[0] + 1 + rand() % (margemDir[0] - margemEsq[0] - INIMIGO_W - 1);
                         break;
                     }
                 }
-            }
+                    
+            }  
 
             // ======== GASOLINA DESCENDO =========
             for (int i = 0; i < GASOLINA_MAX; i++)
@@ -187,6 +201,9 @@ int main(void)
             atualizarBalas();
 
             jogador.score++;
+
+            if (jogador.score % 500 == 0 && limiteSpawn > 3)
+                limiteSpawn--;
 
             // Consome combustível
             jogador.fuel--;
@@ -280,8 +297,10 @@ static void atualizarBalas(void)
                 for (int i = 0; i < INIMIGOS_MAX; i++)
                 {
                     if (inimigos[i].vivo &&
-                        inimigos[i].x == b->x &&
-                        inimigos[i].y == b->y)
+                        b->x >= inimigos[i].x &&
+                        b->x < inimigos[i].x + INIMIGO_W &&
+                        b->y >= inimigos[i].y &&
+                        b->y < inimigos[i].y + INIMIGO_H)
                     {
                         inimigos[i].vivo = 0;
                         remover = 1;
@@ -432,6 +451,28 @@ static void desenharAviao(const Player *p)
     }
 }
 
+static void desenharInimigo(const Inimigo *in)
+
+{
+   for (int r = 0; r < INIMIGO_H; r++)
+   {
+    int y = in->y + r;
+    if (y < 0 || y >= ALTURA) continue;
+
+    for (int c = 0; c < INIMIGO_W; c++)
+    {
+         char ch = INIMIGO[r][c];
+         if (ch == ' ')continue;
+         
+         int x = in-> x + c;
+         if (x >= 0 && x < ALTURA)
+            mvaddch(y,x,ch);
+    }
+   }
+}
+
+
+
 static void desenharTudo(const Player *p)
 {
     erase();
@@ -452,7 +493,7 @@ static void desenharTudo(const Player *p)
     for (int i = 0; i < INIMIGOS_MAX; i++)
     {
         if (inimigos[i].vivo)
-            mvaddch(inimigos[i].y, inimigos[i].x, 'V');
+            desenharInimigo(&inimigos[i]);
     }
 
     for (int i = 0; i < GASOLINA_MAX; i++)
@@ -505,7 +546,11 @@ static int haColisao(const Player *p)
             int x = p->x + c;
             for (int i = 0; i < INIMIGOS_MAX; i++)
             {
-                if (inimigos[i].vivo && inimigos[i].x == x && inimigos[i].y == y)
+                if (inimigos[i].vivo &&
+                    x >= inimigos[i].x && 
+                    x < inimigos[i].x + INIMIGO_W &&
+                    y >= inimigos[i].y &&
+                    y < inimigos[i].y +INIMIGO_H)
                     return 1;
             }
         }
