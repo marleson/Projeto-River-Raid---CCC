@@ -80,8 +80,8 @@ static const char *AVIAO[AVIAO_H] = {
 #define INIMIGO_W 5
 
 static const char *INIMIGO[INIMIGO_H] = {
-    " ||| ",
-    "\\|||/",
+    " | | ",
+    "\\ooo/",
     " === "};
 
 static int LARGURA_MIN = 0;
@@ -120,7 +120,7 @@ int main(void)
     reiniciarJogo(&jogador);
 
     int contadorSpawn = 0;
-    int limiteSpawn = 1;
+    int limiteSpawn = 20;
 
     while (1)
     {
@@ -205,11 +205,7 @@ int main(void)
             if (jogador.score % 500 == 0 && limiteSpawn > 3)
                 limiteSpawn--;
 
-            // Consome combustível
-            jogador.fuel--;
-            if (jogador.fuel <= 0)
-                jogador.vivo = 0;
-
+            
             // Coleta gasolina
             for (int i = 0; i < GASOLINA_MAX; i++)
             {
@@ -223,6 +219,12 @@ int main(void)
                     jogador.fuel = 100;
                 }
             }
+
+            // Consome combustível
+            jogador.fuel--;
+            if (jogador.fuel <= 0)
+                jogador.vivo = 0;
+
 
             if (haColisao(&jogador))
                 jogador.vivo = 0;
@@ -465,7 +467,7 @@ static void desenharInimigo(const Inimigo *in)
          if (ch == ' ')continue;
          
          int x = in-> x + c;
-         if (x >= 0 && x < ALTURA)
+         if (x >= 0 && x < LARGURA)
             mvaddch(y,x,ch);
     }
    }
