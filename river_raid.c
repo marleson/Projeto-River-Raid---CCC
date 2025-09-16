@@ -221,7 +221,16 @@ int main(void)
             }
 
             // Consome combustível
+<<<<<<< HEAD
+            static int tick = 0;
+            tick++;
+            if (tick % 5 == 0)  // gasta 1 unidade a cada 5 ciclos
+            {
+                jogador.fuel--;
+            }
+=======
             jogador.fuel--;
+>>>>>>> upstream/main
             if (jogador.fuel <= 0)
                 jogador.vivo = 0;
 
@@ -499,10 +508,12 @@ static void desenharTudo(const Player *p)
     }
 
     for (int i = 0; i < GASOLINA_MAX; i++)
+{
+    if (postos[i].vivo)
     {
-        if (postos[i].vivo)
-            mvaddch(postos[i].y, postos[i].x, 'G');
+        mvprintw(postos[i].y, postos[i].x, "[FUEL]");
     }
+}
 
     desenharBalas();
     desenharAviao(p);
