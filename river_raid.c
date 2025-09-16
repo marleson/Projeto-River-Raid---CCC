@@ -90,7 +90,7 @@ int LARGURA_MAX = 0;
 // Tick dinâmico: começa lento e acelera
 #define TICK_START_USEC 80000 // 0.08 s por quadro (≈12.5 FPS)
 #define TICK_MIN_USEC 20000   // limite de 0.02 s (≈50 FPS)
-static useconds_t tick_usec = TICK_START_USEC;
+useconds_t tick_usec = TICK_START_USEC;
 
 // ----------------------------
 void iniciarNcurses(void);
@@ -124,6 +124,7 @@ int main(void)
 
     int contadorSpawn = 0;
     int limiteSpawn = 20;
+    int fuelTick = 0;   // conta ciclos para gastar combustível
 
     while (1)
     {
@@ -229,10 +230,10 @@ int main(void)
             }
 
             // Consome combustível
-            int tick = 0;
-            tick++;
-            if (tick % 5 == 0) // gasta 1 unidade a cada 5 ciclos
+            fuelTick++;
+            if (fuelTick >= 8) // gasta 1 unidade a cada 8 ciclos
             {
+                fuelTick = 0;
                 jogador.fuel--;
             }
             if (jogador.fuel <= 0)
