@@ -493,10 +493,10 @@ void desenharTudo(const Player *p)
     erase();       // limpa a tela virtual (ncurses usa double-buffering)
     start_color(); // Permite o uso de cores
 
-    init_pair(1, COLOR_GREEN, COLOR_BLACK);  // cor verde
-    init_pair(2, COLOR_YELLOW, COLOR_BLACK); // cor amarelha
-    init_pair(3, COLOR_RED, COLOR_BLACK);    // cor vermelha
-    init_pair(4, COLOR_MAGENTA, COLOR_BLACK);   // cor ciano
+    init_pair(1, COLOR_GREEN, COLOR_BLACK);   // cor verde
+    init_pair(2, COLOR_YELLOW, COLOR_BLACK);  // cor amarelha
+    init_pair(3, COLOR_RED, COLOR_BLACK);     // cor vermelha
+    init_pair(4, COLOR_MAGENTA, COLOR_BLACK); // cor ciano
     init_pair(5, COLOR_BLUE, COLOR_BLACK);
     init_pair(6, COLOR_BLACK, COLOR_YELLOW);
 
