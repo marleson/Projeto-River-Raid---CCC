@@ -221,16 +221,12 @@ int main(void)
             }
 
             // Consome combustível
-<<<<<<< HEAD
             static int tick = 0;
             tick++;
             if (tick % 5 == 0)  // gasta 1 unidade a cada 5 ciclos
             {
                 jogador.fuel--;
             }
-=======
-            jogador.fuel--;
->>>>>>> upstream/main
             if (jogador.fuel <= 0)
                 jogador.vivo = 0;
 
