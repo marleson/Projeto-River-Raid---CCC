@@ -456,9 +456,9 @@ static void desenharTudo(const Player *p)
     erase(); // limpa a tela virtual (ncurses usa double-buffering)
     start_color(); //Permite o uso de cores
 
-    init_pair(1, COLOR_GREEN, COLOR_BBLACK); // cor verde
-    init_pair(2, COLOR_YELLOW, COLOR_BBLACK); // cor amarelha
-    init_pair(3, COLOR_RED, COLOR_BBLACK); // cor vermelha
+    init_pair(1, COLOR_GREEN, COLOR_BLACK); // cor verde
+    init_pair(2, COLOR_YELLOW, COLOR_BLACK); // cor amarelha
+    init_pair(3, COLOR_RED, COLOR_BLACK); // cor vermelha
 
     // Desenha o rio, linha por linha
     for (int y = 0; y < ALTURA; y++)

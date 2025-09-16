@@ -124,7 +124,7 @@ int main(void)
 
     int contadorSpawn = 0;
     int limiteSpawn = 20;
-    int fuelTick = 0;   // conta ciclos para gastar combustível
+    int fuelTick = 0; // conta ciclos para gastar combustível
 
     while (1)
     {
@@ -490,27 +490,54 @@ void desenharInimigo(const Inimigo *in)
 
 void desenharTudo(const Player *p)
 {
-    erase();
+    erase();       // limpa a tela virtual (ncurses usa double-buffering)
+    start_color(); // Permite o uso de cores
+
+    init_pair(1, COLOR_GREEN, COLOR_BLACK);  // cor verde
+    init_pair(2, COLOR_YELLOW, COLOR_BLACK); // cor amarelha
+    init_pair(3, COLOR_RED, COLOR_BLACK);    // cor vermelha
+    init_pair(4, COLOR_MAGENTA, COLOR_BLACK);   // cor ciano
+    init_pair(5, COLOR_BLUE, COLOR_BLACK);
+    init_pair(6, COLOR_BLACK, COLOR_YELLOW);
 
     for (int y = 0; y < ALTURA; y++)
     {
         int L = margemEsq[y];
         int R = margemDir[y];
 
+        // Parte sólida à esquerda (margem + "terra" fora do rio)
+        attron(COLOR_PAIR(1));
         for (int x = 0; x <= L; x++)
+        {
             mvaddch(y, x, '#');
+        }
+        attroff(COLOR_PAIR(1));
+        // Parte de água do rio (espaços em branco)
+        attron(COLOR_PAIR(5));
         for (int x = L + 1; x < R; x++)
+        {
             mvaddch(y, x, ' ');
+        }
+        attroff(COLOR_PAIR(1));
+        // Parte sólida à direita
+        attron(COLOR_PAIR(1));
         for (int x = R; x < LARGURA; x++)
+        {
             mvaddch(y, x, '#');
+        }
+        attroff(COLOR_PAIR(1));
     }
 
+    // Desenha o inimigo
+    attron(COLOR_PAIR(3));
     for (int i = 0; i < INIMIGOS_MAX; i++)
     {
         if (inimigos[i].vivo)
             desenharInimigo(&inimigos[i]);
     }
+    attroff(COLOR_PAIR(3));
 
+    attron(COLOR_PAIR(4));
     for (int i = 0; i < GASOLINA_MAX; i++)
     {
         if (postos[i].vivo)
@@ -518,13 +545,21 @@ void desenharTudo(const Player *p)
             mvprintw(postos[i].y, postos[i].x, "[FUEL]");
         }
     }
+    attroff(COLOR_PAIR(4));
 
-    desenharBalas();
+    attron(COLOR_PAIR(2));
+    desenharBalas(); // desenha todas as balas na tela
+    attroff(COLOR_PAIR(2));
+
+    attron(COLOR_PAIR(2));
     desenharAviao(p);
+    attroff(COLOR_PAIR(2));
 
+    attron(COLOR_PAIR(6));
     mvprintw(0, 2, "SCORE: %ld  FUEL: %d  %s  | ESPACO=tiro  Q=sair",
              p->score, p->fuel,
              p->vivo ? "" : "[MORREU — R=recomecar]");
+    attroff(COLOR_PAIR(6));
 
     refresh();
 }
