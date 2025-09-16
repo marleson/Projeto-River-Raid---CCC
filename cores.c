@@ -5,39 +5,29 @@
 //           O jogo envolve um jogador (avião) que deve navegar por um rio, evitando as margens.
 // Controles: ←/→  ou  A/D  para mover;  R para reiniciar;  Q para sair
 // Compilar (macOS):
-//   Opção A (usa a ncurses e gcc):
 //     gcc river_raid.c  -o river_raid -lncurses
-//   Opção B (usa a ncurses do sistema):
-//     clang -std=c11 -Wall -Wextra -O2 river_raid.c -lncurses -o river_raid
-//   Opção C (se precisar da do Homebrew):
-//     clang -std=c11 -Wall -Wextra -O2 \
-//       -I"$(brew --prefix)/opt/ncurses/include" \
-//       -L"$(brew --prefix)/opt/ncurses/lib" \
-//       -Wl,-rpath,"$(brew --prefix)/opt/ncurses/lib" \
-//       river_raid.c -lncurses -o river_raid
 // Executar:
 //     ./river_raid
 // ================================================================
 
-#include <ncurses.h> // biblioteca para desenhar no terminal
-#include <stdlib.h>  // malloc, free, rand
-#include <time.h>    // time (semente do rand)
-#include <unistd.h>  // usleep (pausa em microsegundos)
+#include <ncurses.h>
+#include <stdlib.h>
+#include <time.h>
+#include <unistd.h>
 #include <stdio.h>
 
 // ----------------------------
 // ESTRUTURAS DE DADOS SIMPLES
 // ----------------------------
-// Representa o jogador (avião)
 typedef struct
 {
-    int x;      // coluna (horizontal)
-    int y;      // linha (vertical)
-    int vivo;   // 1 = vivo; 0 = morto (colisão)
-    long score; // pontuação simples: conta linhas percorridas
+    int x;
+    int y;
+    int vivo;
+    long score;
+    int fuel; // NOVO: combustível
 } Player;
 
-// Representa os inimigos
 typedef struct
 {
     int x;
@@ -45,120 +35,137 @@ typedef struct
     int vivo;
 } Inimigo;
 
-// Maximo de inimigos
 #define INIMIGOS_MAX 20
-static Inimigo inimigos[INIMIGOS_MAX];
+Inimigo inimigos[INIMIGOS_MAX];
 
 // ============================
-// TIROS (lista ligada simples)
+// TIROS
 // ============================
 typedef struct Bala
 {
-    int x, y;          // posição da bala
-    struct Bala *prox; // próxima bala na lista
+    int x, y;
+    struct Bala *prox;
 } Bala;
 
-static Bala *balas = NULL; // início da lista (NULL = nenhuma bala)
+Bala *balas = NULL;
 
-// Dimensões atuais do terminal (serão lidas na inicialização)
-static int LARGURA = 0; // número de colunas
-static int ALTURA = 0;  // número de linhas
+// ============================
+// GASOLINA
+// ============================
+typedef struct
+{
+    int x;
+    int y;
+    int vivo;
+} Gasolina;
 
-// Vetores que guardam as margens do rio para CADA linha da tela.
-// Para cada y (linha), temos:
-//   margemEsq[y]  = posição da margem esquerda
-//   margemDir[y]  = posição da margem direita
-static int *margemEsq = NULL;
-static int *margemDir = NULL;
+#define GASOLINA_MAX 5
+Gasolina postos[GASOLINA_MAX];
 
 // ----------------------------
-// SPRITE ASCII do avião (âncora no topo-esquerdo: p->x, p->y)
-// Você pode ALTERAR as 3 linhas abaixo para mudar o desenho.
-// IMPORTANTE: use apenas caracteres ASCII de largura 1 (evita desalinhamento).
+int LARGURA = 0;
+int ALTURA = 0;
+
+int *margemEsq = NULL;
+int *margemDir = NULL;
+
 #define AVIAO_H 3
 #define AVIAO_W 5
-static const char *AVIAO[AVIAO_H] = {
+const char *AVIAO[AVIAO_H] = {
     "  ^  ",
     "<-A->",
     " / \\ "};
 
-// Parâmetros da largura do rio (em colunas)
-static int LARGURA_MIN = 0; // rio nunca fica mais estreito que isso
-static int LARGURA_MAX = 0; // nem mais largo que isso
+// ----------------------------
+// MAPA — controle de tendência em segmentos curtos
+// ----------------------------
+// Duração de cada “segmento” de curva/afinamento (em linhas/frames)
+#define SEG_DUR_MIN 4
+#define SEG_DUR_MAX 9
 
-// Velocidade do jogo (quanto menor, mais rápido)
-// 40000 µs ≈ 0.04 s por quadro ≈ ~25 FPS
-static const useconds_t TICK_USEC = 40000;
+// Estado do gerador do rio (NÃO usar static, conforme pedido)
+int dirCentro = 0;  // -1 = curvar para a esquerda, 0 = reto, +1 = direita
+int durCentro = 0;  // quantas linhas restam mantendo dirCentro
+int dirLargura = 0; // -1 = afinar, 0 = igual, +1 = alargar
+int durLargura = 0; // quantas linhas restam mantendo dirLargura
+
+// “Topo” atual do rio — referência para gerar a próxima linha
+int centroAtual = 0;  // coluna do centro do rio (linha 0)
+int larguraAtual = 0; // largura do rio (em colunas) na linha 0
+
+#define INIMIGO_H 3
+#define INIMIGO_W 5
+
+const char *INIMIGO[INIMIGO_H] = {
+    " | | ",
+    "\\ooo/",
+    " === "};
+
+int LARGURA_MIN = 0;
+int LARGURA_MAX = 0;
+
+// Tick dinâmico: começa lento e acelera
+#define TICK_START_USEC 80000 // 0.08 s por quadro (≈12.5 FPS)
+#define TICK_MIN_USEC 20000   // limite de 0.02 s (≈50 FPS)
+useconds_t tick_usec = TICK_START_USEC;
 
 // ----------------------------
-// FUNÇÕES — CABEÇALHOS (protótipos)
-// ----------------------------
-static void iniciarNcurses(void);
-static void finalizarNcurses(void);
-static void criarRioInicial(void);
-static void gerarNovaLinhaNoTopo(void);
-static void desenharTudo(const Player *p);
-static void desenharAviao(const Player *p); // novo: desenha o avião multi-caracteres
-static int haColisao(const Player *p);
-static void ReiniciarInimigos(void);
-static void reiniciarJogo(Player *p);
+void iniciarNcurses(void);
+void finalizarNcurses(void);
+void criarRioInicial(void);
+void gerarNovaLinhaNoTopo(void);
+void desenharTudo(const Player *p);
+void desenharAviao(const Player *p);
+int haColisao(const Player *p);
+void ReiniciarInimigos(void);
+void reiniciarJogo(Player *p);
 // Tiros
-static void iniciarBalas(void);
-static void destruirBalas(void);
-static void disparar(const Player *p);
-static void atualizarBalas(void);
-static void desenharBalas(void);
+void iniciarBalas(void);
+void destruirBalas(void);
+void disparar(const Player *p);
+void atualizarBalas(void);
+void desenharBalas(void);
+// Gasolina
+void ReiniciarGasolina(void);
 
 // ================================================================
-// FUNÇÃO PRINCIPAL
+// MAIN
 // ================================================================
 int main(void)
 {
-    // Semente para números aleatórios (deixamos o rio "balançar")
     srand((unsigned)time(NULL));
-
     iniciarNcurses();
 
     Player jogador;
-    reiniciarJogo(&jogador); // posiciona jogador e cria rio inicial
+    reiniciarJogo(&jogador);
+
+    int contadorSpawn = 0;
+    int limiteSpawn = 20;
+    int fuelTick = 0; // conta ciclos para gastar combustível
 
     while (1)
     {
-        // Leitura de tecla SEM travar o jogo (nodelay foi ativado)
         int ch = getch();
-
-        // Tecla para sair
         if (ch == 'q' || ch == 'Q')
-        {
-            break; // encerra o loop e finaliza ncurses
-        }
+            break;
 
         if (jogador.vivo)
         {
-            // MOVIMENTO HORIZONTAL do avião
             if (ch == KEY_LEFT || ch == 'a' || ch == 'A')
                 jogador.x--;
             if (ch == KEY_RIGHT || ch == 'd' || ch == 'D')
                 jogador.x++;
-
-            // Disparo com ESPAÇO (uma tecla só, sem recarga)
-            // Cada pressionar gera uma bala nova
             if (ch == ' ')
-            {
                 disparar(&jogador);
-            }
 
-            // Mantém o jogador dentro da tela, levando em conta a LARGURA do sprite
             if (jogador.x < 1)
                 jogador.x = 1;
-            int maxX = LARGURA - AVIAO_W - 1; // -1: reserva a última coluna sólida
+            int maxX = LARGURA - AVIAO_W - 1;
             if (jogador.x > maxX)
                 jogador.x = maxX;
 
-            // Faz o MUNDO descer uma linha e gera uma nova no topo
             gerarNovaLinhaNoTopo();
 
-            // faz os inimigos que nasceram descerem uma linha
             for (int i = 0; i < INIMIGOS_MAX; i++)
             {
                 if (inimigos[i].vivo)
@@ -169,45 +176,97 @@ int main(void)
                 }
             }
 
-            // Chance de nascer um inimigo na tela
-            if (rand() % 100 < 5)
+            contadorSpawn++;
+            if (contadorSpawn > limiteSpawn)
             {
+                contadorSpawn = 0;
                 for (int i = 0; i < INIMIGOS_MAX; i++)
                 {
                     if (!inimigos[i].vivo)
                     {
                         inimigos[i].vivo = 1;
                         inimigos[i].y = 0;
-                        inimigos[i].x = margemEsq[0] + 1 + rand() % (margemDir[0] - margemEsq[0] - 2);
+                        inimigos[i].x = margemEsq[0] + 1 + rand() % (margemDir[0] - margemEsq[0] - INIMIGO_W - 1);
                         break;
                     }
                 }
             }
 
-            atualizarBalas(); // move e resolve colisões das balas
-
-            jogador.score++; // andou mais uma linha → ganha pontos
-
-            // Verifica colisão com as margens do rio
-            if (haColisao(&jogador))
+            // ======== GASOLINA DESCENDO =========
+            for (int i = 0; i < GASOLINA_MAX; i++)
             {
-                jogador.vivo = 0; // game over (morreu)
+                if (postos[i].vivo)
+                {
+                    postos[i].y++;
+                    if (postos[i].y >= ALTURA)
+                        postos[i].vivo = 0;
+                }
             }
+
+            // ======== NASCER GASOLINA =========
+            if (rand() % 100 < 3)
+            {
+                for (int i = 0; i < GASOLINA_MAX; i++)
+                {
+                    if (!postos[i].vivo)
+                    {
+                        postos[i].vivo = 1;
+                        postos[i].y = 0;
+                        postos[i].x = margemEsq[0] + 1 + rand() % (margemDir[0] - margemEsq[0] - 2);
+                        break;
+                    }
+                }
+            }
+
+            atualizarBalas();
+
+            jogador.score++;
+
+            if (jogador.score % 120 == 0 && tick_usec > TICK_MIN_USEC)
+            {
+                tick_usec -= 2000; // acelera um pouquinho
+                if (tick_usec < TICK_MIN_USEC)
+                    tick_usec = TICK_MIN_USEC;
+            }
+
+            if (jogador.score % 500 == 0 && limiteSpawn > 3)
+                limiteSpawn--;
+
+            // Coleta gasolina
+            for (int i = 0; i < GASOLINA_MAX; i++)
+            {
+                if (postos[i].vivo &&
+                    postos[i].x >= jogador.x &&
+                    postos[i].x < jogador.x + AVIAO_W &&
+                    postos[i].y >= jogador.y &&
+                    postos[i].y < jogador.y + AVIAO_H)
+                {
+                    postos[i].vivo = 0;
+                    jogador.fuel = 100;
+                }
+            }
+
+            // Consome combustível
+            fuelTick++;
+            if (fuelTick >= 8) // gasta 1 unidade a cada 8 ciclos
+            {
+                fuelTick = 0;
+                jogador.fuel--;
+            }
+            if (jogador.fuel <= 0)
+                jogador.vivo = 0;
+
+            if (haColisao(&jogador))
+                jogador.vivo = 0;
         }
         else
         {
-            // Se já morreu, permite reiniciar com R
             if (ch == 'r' || ch == 'R')
-            {
                 reiniciarJogo(&jogador);
-            }
         }
 
-        // Desenha toda a tela (rio, HUD e avião)
         desenharTudo(&jogador);
-
-        // Pequena pausa para controlar a velocidade do jogo
-        usleep(TICK_USEC);
+        usleep(tick_usec);
     }
 
     finalizarNcurses();
@@ -215,20 +274,12 @@ int main(void)
 }
 
 // ================================================================
-// IMPLEMENTAÇÕES DAS FUNÇÕES
+// BALAS
 // ================================================================
+void iniciarBalas(void) { balas = NULL; }
 
-// ----------------------------
-// TIROS — implementação
-// ----------------------------
-static void iniciarBalas(void)
+void destruirBalas(void)
 {
-    balas = NULL; // lista começa vazia
-}
-
-static void destruirBalas(void)
-{
-    // libera toda a lista (usado em reinício/saída)
     while (balas)
     {
         Bala *tmp = balas;
@@ -237,59 +288,54 @@ static void destruirBalas(void)
     }
 }
 
-// Cria uma bala no "nariz" do avião (centro do topo do sprite)
-static void disparar(const Player *p)
+void disparar(const Player *p)
 {
     int narizX = p->x + AVIAO_W / 2;
-    int startY = p->y - 1; // nasce uma linha acima do avião
+    int startY = p->y - 1;
     if (startY <= 0)
-        return; // segurança
+        return;
 
     Bala *b = (Bala *)malloc(sizeof(Bala));
     if (!b)
-        return; // sem memória → ignora o disparo
+        return;
     b->x = narizX;
     b->y = startY;
-    b->prox = balas; // insere no início (O(1))
+    b->prox = balas;
     balas = b;
 }
 
-static void atualizarBalas(void)
+void atualizarBalas(void)
 {
-    // Percorre usando ponteiro-para-ponteiro para remover no meio da lista
     Bala **pp = &balas;
     while (*pp)
     {
         Bala *b = *pp;
-
-        // move a bala pra cima (em direção ao topo)
         b->y--;
 
         int remover = 0;
 
-        // saiu da tela?
         if (b->y <= 0)
         {
             remover = 1;
         }
         else
         {
-            // se "fora da água" (entrou na margem), some
             if (b->x <= margemEsq[b->y] || b->x >= margemDir[b->y])
             {
                 remover = 1;
             }
             else
             {
-                // colisão com inimigos (inimigo é 1x1)
                 for (int i = 0; i < INIMIGOS_MAX; i++)
                 {
                     if (inimigos[i].vivo &&
-                        inimigos[i].x == b->x &&
-                        inimigos[i].y == b->y)
+                        b->x >= inimigos[i].x &&
+                        b->x < inimigos[i].x + INIMIGO_W &&
+                        b->y >= inimigos[i].y &&
+                        b->y < inimigos[i].y + INIMIGO_H)
                     {
-                        inimigos[i].vivo = 0; // inimigo some
-                        remover = 1;          // bala some
+                        inimigos[i].vivo = 0;
+                        remover = 1;
                         break;
                     }
                 }
@@ -298,38 +344,38 @@ static void atualizarBalas(void)
 
         if (remover)
         {
-            *pp = b->prox; // retira da lista
+            *pp = b->prox;
             free(b);
         }
         else
         {
-            pp = &b->prox; // avança
+            pp = &b->prox;
         }
     }
 }
 
-static void desenharBalas(void)
+void desenharBalas(void)
 {
     for (Bala *b = balas; b != NULL; b = b->prox)
     {
-        mvaddch(b->y, b->x, '|'); // caractere do projétil
+        mvaddch(b->y, b->x, '|');
     }
 }
 
-// Inicializa a ncurses e configura o terminal para o jogo
-static void iniciarNcurses(void)
+// ================================================================
+// NCURSES E RIO
+// ================================================================
+void iniciarNcurses(void)
 {
-    initscr();             // inicia modo ncurses
-    cbreak();              // lê tecla sem precisar de ENTER
-    noecho();              // não mostra as teclas digitadas na tela
-    curs_set(0);           // esconde o cursor
-    keypad(stdscr, TRUE);  // permite usar teclas especiais (setas)
-    nodelay(stdscr, TRUE); // getch() não bloqueia
+    initscr();
+    cbreak();
+    noecho();
+    curs_set(0);
+    keypad(stdscr, TRUE);
+    nodelay(stdscr, TRUE);
 
-    // Lê o tamanho atual do terminal
     getmaxyx(stdscr, ALTURA, LARGURA);
 
-    // Validação simples do tamanho mínimo
     if (ALTURA < 20 || LARGURA < 40)
     {
         endwin();
@@ -337,23 +383,20 @@ static void iniciarNcurses(void)
         exit(1);
     }
 
-    // Define larguras mínima e máxima do rio baseadas no tamanho da tela
-    LARGURA_MIN = LARGURA / 3; // mais estreito permitido (talvez melhor 3)
-    LARGURA_MAX = LARGURA / 2; // mais largo permitido
+    LARGURA_MIN = LARGURA / 3;
+    LARGURA_MAX = LARGURA / 2;
 
-    // Aloca os vetores das margens (um valor por linha)
     margemEsq = (int *)malloc(sizeof(int) * ALTURA);
     margemDir = (int *)malloc(sizeof(int) * ALTURA);
     if (!margemEsq || !margemDir)
     {
         endwin();
-        fprintf(stderr, "Falha ao alocar memória para o rio.\n");
+        fprintf(stderr, "Falha ao alocar memória.\n");
         exit(1);
     }
 }
 
-// Finaliza a ncurses e libera memória
-static void finalizarNcurses(void)
+void finalizarNcurses(void)
 {
     destruirBalas();
     endwin();
@@ -361,106 +404,160 @@ static void finalizarNcurses(void)
     free(margemDir);
 }
 
-// Cria um rio "reto" inicial (mesma largura em todas as linhas)
-static void criarRioInicial(void)
+void criarRioInicial(void)
 {
-    int centro = LARGURA / 2;     // começa no meio da tela
-    int larguraRio = LARGURA / 2; // largura inicial
+    int centro = LARGURA / 2;
+    int larguraRio = LARGURA / 3;
     if (larguraRio < LARGURA_MIN)
         larguraRio = LARGURA_MIN;
     if (larguraRio > LARGURA_MAX)
         larguraRio = LARGURA_MAX;
 
     int metade = larguraRio / 2;
-    int L = centro - metade; // margem esquerda
-    int R = centro + metade; // margem direita
+    int L = centro - metade;
+    int R = centro + metade;
 
-    // Preenche TODAS as linhas com as mesmas margens iniciais
+    // Preenche todo o rio reto
     for (int y = 0; y < ALTURA; y++)
     {
         margemEsq[y] = L;
         margemDir[y] = R;
     }
+
+    // Inicializa o topo do gerador
+    centroAtual = centro;
+    larguraAtual = larguraRio;
+
+    // Começa sem tendência; sorteia logo na 1a chamada
+    dirCentro = 0;
+    durCentro = 0;
+    dirLargura = 0;
+    durLargura = 0;
 }
 
-// Faz o mundo "descer" (shift para baixo) e cria uma nova linha no topo
-// com pequenas variações (curvas suaves e largura mudando de leve)
-static void gerarNovaLinhaNoTopo(void)
+void gerarNovaLinhaNoTopo(void)
 {
-    // 1) Empurra todas as linhas para BAIXO (de ALTURA-1 até 1)
+    // 1) Desce o mundo uma linha
     for (int y = ALTURA - 1; y > 0; y--)
     {
         margemEsq[y] = margemEsq[y - 1];
         margemDir[y] = margemDir[y - 1];
     }
 
-    // 2) Calcula a nova linha 0 (topo) baseada na linha 0 anterior
-    int Lant = margemEsq[0];
-    int Rant = margemDir[0];
-    int centroAnt = (Lant + Rant) / 2;
-    int larguraAnt = (Rant - Lant);
+    // 2) Se acabou o segmento de curva do centro, sorteia um novo
+    if (durCentro <= 0)
+    {
+        // -1, 0 ou +1 com a mesma chance; simples e didático
+        dirCentro = (rand() % 3) - 1;
+        durCentro = SEG_DUR_MIN + rand() % (SEG_DUR_MAX - SEG_DUR_MIN + 1);
+    }
 
-    // Pequenas variações aleatórias (−1, 0, +1)
-    int centroNovo = centroAnt + (rand() % 3 - 1);
-    int larguraNova = larguraAnt + (rand() % 3 - 1);
+    // 3) Se acabou o segmento de largura, sorteia um novo
+    if (durLargura <= 0)
+    {
+        dirLargura = (rand() % 3) - 1; // -1 afina, 0 mantém, +1 alarga
+        durLargura = SEG_DUR_MIN + rand() % (SEG_DUR_MAX - SEG_DUR_MIN + 1);
+    }
 
-    // Mantém dentro dos limites definidos
-    if (larguraNova < LARGURA_MIN)
-        larguraNova = LARGURA_MIN;
-    if (larguraNova > LARGURA_MAX)
-        larguraNova = LARGURA_MAX;
+    // 4) Aplica 1 passo de cada tendência
+    centroAtual += dirCentro;
+    larguraAtual += dirLargura;
 
-    int metade = larguraNova / 2;
-    int Lnovo = centroNovo - metade;
-    int Rnovo = centroNovo + metade;
+    // 5) Respeita limites da largura
+    if (larguraAtual < LARGURA_MIN)
+    {
+        larguraAtual = LARGURA_MIN;
+        dirLargura = 0; // para de afinar neste segmento
+    }
+    else if (larguraAtual > LARGURA_MAX)
+    {
+        larguraAtual = LARGURA_MAX;
+        dirLargura = 0; // para de alargar neste segmento
+    }
 
-    // Garante que as margens fiquem dentro da tela (1 até LARGURA-2)
+    // 6) Gera margens a partir do centro/largura
+    int metade = larguraAtual / 2;
+    int Lnovo = centroAtual - metade;
+    int Rnovo = centroAtual + metade;
+
+    // 7) Garante que o rio fique dentro da tela
     if (Lnovo < 1)
     {
         Lnovo = 1;
-        Rnovo = Lnovo + larguraNova;
+        Rnovo = Lnovo + larguraAtual;
+        centroAtual = (Lnovo + Rnovo) / 2;
+        dirCentro = 0; // bateu na “parede” → neutraliza tendência
     }
     if (Rnovo > LARGURA - 2)
     {
         Rnovo = LARGURA - 2;
-        Lnovo = Rnovo - larguraNova;
+        Lnovo = Rnovo - larguraAtual;
+        centroAtual = (Lnovo + Rnovo) / 2;
+        dirCentro = 0;
     }
 
-    // 3) Escreve a nova linha no topo
+    // 8) Escreve a nova linha no topo
     margemEsq[0] = Lnovo;
     margemDir[0] = Rnovo;
+
+    // 9) Diminui a duração restante dos segmentos
+    durCentro--;
+    durLargura--;
 }
 
-// Desenha todo o conteúdo na tela: rio, HUD e jogador
-// Desenha o avião como um conjunto de caracteres (sprite ASCII)
-static void desenharAviao(const Player *p)
+// ================================================================
+// DESENHO
+// ================================================================
+void desenharAviao(const Player *p)
 {
-    // Percorremos cada linha (r) e coluna (c) do SPRITE
     for (int r = 0; r < AVIAO_H; r++)
     {
-        int y = p->y + r; // linha absoluta na tela
+        int y = p->y + r;
         for (int c = 0; c < AVIAO_W; c++)
         {
             char ch = AVIAO[r][c];
             if (ch == ' ')
-                continue;     // espaços não são desenhados
-            int x = p->x + c; // coluna absoluta na tela
-            // Se o jogador estiver morto, desenhamos 'X' no lugar
+                continue;
+            int x = p->x + c;
             mvaddch(y, x, p->vivo ? ch : 'X');
         }
     }
 }
 
-static void desenharTudo(const Player *p)
+void desenharInimigo(const Inimigo *in)
+
 {
-    erase(); // limpa a tela virtual (ncurses usa double-buffering)
-    start_color(); //Permite o uso de cores
+    for (int r = 0; r < INIMIGO_H; r++)
+    {
+        int y = in->y + r;
+        if (y < 0 || y >= ALTURA)
+            continue;
 
-    init_pair(1, COLOR_GREEN, COLOR_BLACK); // cor verde
-    init_pair(2, COLOR_YELLOW, COLOR_BLACK); // cor amarelha
-    init_pair(3, COLOR_RED, COLOR_BLACK); // cor vermelha
+        for (int c = 0; c < INIMIGO_W; c++)
+        {
+            char ch = INIMIGO[r][c];
+            if (ch == ' ')
+                continue;
 
-    // Desenha o rio, linha por linha
+            int x = in->x + c;
+            if (x >= 0 && x < LARGURA)
+                mvaddch(y, x, ch);
+        }
+    }
+}
+
+void desenharTudo(const Player *p)
+{
+    erase();       // limpa a tela virtual (ncurses usa double-buffering)
+    start_color(); // Permite o uso de cores
+
+    init_pair(1, COLOR_GREEN, COLOR_BLACK);   // cor verde
+    init_pair(2, COLOR_YELLOW, COLOR_BLACK);  // cor amarelha
+    init_pair(3, COLOR_RED, COLOR_BLACK);     // cor vermelha
+    init_pair(4, COLOR_MAGENTA, COLOR_BLACK); // cor ciano
+    init_pair(5, COLOR_BLUE, COLOR_BLACK);
+    init_pair(6, COLOR_BLACK, COLOR_YELLOW);
+
     for (int y = 0; y < ALTURA; y++)
     {
         int L = margemEsq[y];
@@ -474,10 +571,12 @@ static void desenharTudo(const Player *p)
         }
         attroff(COLOR_PAIR(1));
         // Parte de água do rio (espaços em branco)
+        attron(COLOR_PAIR(5));
         for (int x = L + 1; x < R; x++)
         {
             mvaddch(y, x, ' ');
         }
+        attroff(COLOR_PAIR(1));
         // Parte sólida à direita
         attron(COLOR_PAIR(1));
         for (int x = R; x < LARGURA; x++)
@@ -492,99 +591,107 @@ static void desenharTudo(const Player *p)
     for (int i = 0; i < INIMIGOS_MAX; i++)
     {
         if (inimigos[i].vivo)
-            mvaddch(inimigos[i].y, inimigos[i].x, 'V');
+            desenharInimigo(&inimigos[i]);
     }
     attroff(COLOR_PAIR(3));
+
+    attron(COLOR_PAIR(4));
+    for (int i = 0; i < GASOLINA_MAX; i++)
+    {
+        if (postos[i].vivo)
+        {
+            mvprintw(postos[i].y, postos[i].x, "[FUEL]");
+        }
+    }
+    attroff(COLOR_PAIR(4));
 
     attron(COLOR_PAIR(2));
     desenharBalas(); // desenha todas as balas na tela
     attroff(COLOR_PAIR(2));
 
-    // Desenha o jogador: '^' se vivo, 'X' se morto
-    // Desenha o avião (sprite ASCII multi-caracteres)
     attron(COLOR_PAIR(2));
     desenharAviao(p);
     attroff(COLOR_PAIR(2));
 
-    // HUD (informações no topo)
-    mvprintw(0, 2, "SCORE: %ld  %s  | ESPACO=tiro  Q=sair",
-             p->score,
+    attron(COLOR_PAIR(6));
+    mvprintw(0, 2, "SCORE: %ld  FUEL: %d  %s  | ESPACO=tiro  Q=sair",
+             p->score, p->fuel,
              p->vivo ? "" : "[MORREU — R=recomecar]");
+    attroff(COLOR_PAIR(6));
 
-    // Mostra tudo de uma vez na tela real
     refresh();
 }
 
-// Verifica se o jogador bateu na margem do rio ou em inimigos
-static int haColisao(const Player *p)
+// ================================================================
+// COLISÃO E RESET
+// ================================================================
+int haColisao(const Player *p)
 {
-    // 1) Avião x margens do rio
-    for (int r = 0; r < AVIAO_H; r++)
-    {
-        int y = p->y + r;
-        if (y < 0 || y >= ALTURA)
-            continue; // fora da tela, ignora (segurança)
-
-        for (int c = 0; c < AVIAO_W; c++)
-        {
-            char ch = AVIAO[r][c];
-            if (ch == ' ')
-                continue; // células vazias do sprite não colidem
-
-            int x = p->x + c; // posição real na tela desta célula
-            // se esta célula do avião invadiu a margem, colidiu
-            if (x <= margemEsq[y] || x >= margemDir[y])
-            {
-                return 1;
-            }
-        }
-    }
-
-    // 2) Avião x inimigos (inimigo é 1x1 em (x, y))
     for (int r = 0; r < AVIAO_H; r++)
     {
         int y = p->y + r;
         if (y < 0 || y >= ALTURA)
             continue;
-
         for (int c = 0; c < AVIAO_W; c++)
         {
             char ch = AVIAO[r][c];
             if (ch == ' ')
                 continue;
+            int x = p->x + c;
+            if (x <= margemEsq[y] || x >= margemDir[y])
+                return 1;
+        }
+    }
 
+    for (int r = 0; r < AVIAO_H; r++)
+    {
+        int y = p->y + r;
+        if (y < 0 || y >= ALTURA)
+            continue;
+        for (int c = 0; c < AVIAO_W; c++)
+        {
+            char ch = AVIAO[r][c];
+            if (ch == ' ')
+                continue;
             int x = p->x + c;
             for (int i = 0; i < INIMIGOS_MAX; i++)
             {
-                if (inimigos[i].vivo && inimigos[i].x == x && inimigos[i].y == y)
-                {
-                    return 1; // encostou em qualquer parte do avião
-                }
+                if (inimigos[i].vivo &&
+                    x >= inimigos[i].x &&
+                    x < inimigos[i].x + INIMIGO_W &&
+                    y >= inimigos[i].y &&
+                    y < inimigos[i].y + INIMIGO_H)
+                    return 1;
             }
         }
     }
 
-    return 0; // sem colisão
+    return 0;
 }
 
-// Reinicia o estado do jogo (novo rio, jogador vivo no mesmo lugar)
-static void reiniciarJogo(Player *p)
+void reiniciarJogo(Player *p)
 {
+    tick_usec = TICK_START_USEC;
     destruirBalas();
     iniciarBalas();
-    criarRioInicial();  // preenche as margens para todas as linhas
-    p->x = LARGURA / 2; // começa no meio (horizontal)
-    p->y = ALTURA - 4;  // um pouco acima do rodapé
-    p->vivo = 1;        // jogador está vivo
-    p->score = 0;       // zera pontuação
-
+    criarRioInicial();
+    p->x = LARGURA / 2;
+    p->y = ALTURA - 4;
+    p->vivo = 1;
+    p->score = 0;
+    p->fuel = 100; // NOVO: tanque cheio
     ReiniciarInimigos();
+    ReiniciarGasolina();
 }
-// Reiniciar os inimigos
-static void ReiniciarInimigos(void)
+
+void ReiniciarInimigos(void)
 {
     for (int i = 0; i < INIMIGOS_MAX; i++)
-    {
         inimigos[i].vivo = 0;
-    }
+}
+
+void ReiniciarGasolina(void)
+{
+    for (int i = 0; i < GASOLINA_MAX; i++)
+        postos[i].vivo = 0;
 }
