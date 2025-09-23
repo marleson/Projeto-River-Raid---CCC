@@ -88,8 +88,8 @@ int LARGURA_MIN = 0;
 int LARGURA_MAX = 0;
 
 // Tick dinâmico: começa lento e acelera
-#define TICK_START_USEC 80000 // 0.08 s por quadro (≈12.5 FPS)
-#define TICK_MIN_USEC 20000   // limite de 0.02 s (≈50 FPS)
+#define TICK_START_USEC 100000 // 0.01 s por quadro (≈10 FPS)
+#define TICK_MIN_USEC 20000    // limite de 0.02 s (≈50 FPS)
 useconds_t tick_usec = TICK_START_USEC;
 
 // ----------------------------
@@ -106,7 +106,7 @@ void reiniciarJogo(Player *p);
 void iniciarBalas(void);
 void destruirBalas(void);
 void disparar(const Player *p);
-void atualizarBalas(void);
+void atualizarBalas(Player *p);
 void desenharBalas(void);
 // Gasolina
 void ReiniciarGasolina(void);
@@ -122,6 +122,7 @@ int main(void)
     Player jogador;
     reiniciarJogo(&jogador);
 
+    int contadorLinha = 0;
     int contadorSpawn = 0;
     int limiteSpawn = 20;
     int fuelTick = 0; // conta ciclos para gastar combustível
@@ -146,6 +147,8 @@ int main(void)
             int maxX = LARGURA - AVIAO_W - 1;
             if (jogador.x > maxX)
                 jogador.x = maxX;
+
+            contadorLinha++;
 
             gerarNovaLinhaNoTopo();
 
@@ -201,18 +204,21 @@ int main(void)
                 }
             }
 
-            atualizarBalas();
+            atualizarBalas(&jogador);
 
-            jogador.score++;
+            if (contadorLinha % 100 == 0)
+            {
+                jogador.score += 10; // 10 Pontos por tempo sobrevivido
+            }
 
-            if (jogador.score % 120 == 0 && tick_usec > TICK_MIN_USEC)
+            if (contadorLinha % 120 == 0 && tick_usec > TICK_MIN_USEC)
             {
                 tick_usec -= 2000; // acelera um pouquinho
                 if (tick_usec < TICK_MIN_USEC)
                     tick_usec = TICK_MIN_USEC;
             }
 
-            if (jogador.score % 500 == 0 && limiteSpawn > 3)
+            if (contadorLinha % 500 == 0 && limiteSpawn > 3)
                 limiteSpawn--;
 
             // Coleta gasolina
@@ -287,7 +293,7 @@ void disparar(const Player *p)
     balas = b;
 }
 
-void atualizarBalas(void)
+void atualizarBalas(Player *p)
 {
     Bala **pp = &balas;
     while (*pp)
@@ -317,8 +323,9 @@ void atualizarBalas(void)
                         b->y >= inimigos[i].y &&
                         b->y < inimigos[i].y + INIMIGO_H)
                     {
-                        inimigos[i].vivo = 0;
-                        remover = 1;
+                        inimigos[i].vivo = 0; // inimigo destruído
+                        p->score += 30;       // +30 pontos por abate
+                        remover = 1;          // bala se consome
                         break;
                     }
                 }
