@@ -62,8 +62,6 @@ typedef struct
 #define GASOLINA_MAX 5
 Gasolina postos[GASOLINA_MAX];
 
-#define RANGE_COLETA 2   // distância máxima para coletar combustível
-
 // ----------------------------
 int LARGURA = 0;
 int ALTURA = 0;
@@ -217,53 +215,33 @@ int main(void)
             if (jogador.score % 500 == 0 && limiteSpawn > 3)
                 limiteSpawn--;
 
-<<<<<<< HEAD
-            
-            // Coleta gasolina com range
-            #define RANGE_COLETA 2  // distância máxima para coletar combustível
-
-=======
             // Coleta gasolina
->>>>>>> 50f0ad82696c5e6dfab64e06055bf34cb7f5127b
             for (int i = 0; i < GASOLINA_MAX; i++)
             {
-                if (postos[i].vivo)
+                if (postos[i].vivo &&
+                    postos[i].x >= jogador.x &&
+                    postos[i].x < jogador.x + AVIAO_W &&
+                    postos[i].y >= jogador.y &&
+                    postos[i].y < jogador.y + AVIAO_H)
                 {
-                    int dx = abs((jogador.x + AVIAO_W/2) - postos[i].x);
-                    int dy = abs((jogador.y + AVIAO_H/2) - postos[i].y);
-
-                    if (dx <= RANGE_COLETA && dy <= RANGE_COLETA)
-                    {
-                        postos[i].vivo = 0;
-                        jogador.fuel = 100;
-                    }
+                    postos[i].vivo = 0;
+                    jogador.fuel = 100;
                 }
             }
 
             // Consome combustível
-<<<<<<< HEAD
-            static int tick = 0;
-            tick++;
-            if (tick % 5 == 0)  // gasta 1 unidade a cada 5 ciclos
-=======
             fuelTick++;
             if (fuelTick >= 8) // gasta 1 unidade a cada 8 ciclos
->>>>>>> 50f0ad82696c5e6dfab64e06055bf34cb7f5127b
             {
                 fuelTick = 0;
                 jogador.fuel--;
-                if (jogador.fuel <= 0)
-                    jogador.vivo = 0;
             }
-<<<<<<< HEAD
-=======
             if (jogador.fuel <= 0)
                 jogador.vivo = 0;
 
             if (haColisao(&jogador))
                 jogador.vivo = 0;
         }
->>>>>>> 50f0ad82696c5e6dfab64e06055bf34cb7f5127b
         else
         {
             if (ch == 'r' || ch == 'R')
