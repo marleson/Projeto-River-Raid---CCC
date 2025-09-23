@@ -36,7 +36,7 @@ typedef struct
 } Inimigo;
 
 #define INIMIGOS_MAX 20
-static Inimigo inimigos[INIMIGOS_MAX];
+Inimigo inimigos[INIMIGOS_MAX];
 
 // ============================
 // TIROS
@@ -47,7 +47,7 @@ typedef struct Bala
     struct Bala *prox;
 } Bala;
 
-static Bala *balas = NULL;
+Bala *balas = NULL;
 
 // ============================
 // GASOLINA
@@ -60,20 +60,20 @@ typedef struct
 } Gasolina;
 
 #define GASOLINA_MAX 5
-static Gasolina postos[GASOLINA_MAX];
+Gasolina postos[GASOLINA_MAX];
 
 #define RANGE_COLETA 2   // distância máxima para coletar combustível
 
 // ----------------------------
-static int LARGURA = 0;
-static int ALTURA = 0;
+int LARGURA = 0;
+int ALTURA = 0;
 
-static int *margemEsq = NULL;
-static int *margemDir = NULL;
+int *margemEsq = NULL;
+int *margemDir = NULL;
 
 #define AVIAO_H 3
 #define AVIAO_W 5
-static const char *AVIAO[AVIAO_H] = {
+const char *AVIAO[AVIAO_H] = {
     "  ^  ",
     "<-A->",
     " / \\ "};
@@ -81,34 +81,37 @@ static const char *AVIAO[AVIAO_H] = {
 #define INIMIGO_H 3
 #define INIMIGO_W 5
 
-static const char *INIMIGO[INIMIGO_H] = {
+const char *INIMIGO[INIMIGO_H] = {
     " | | ",
     "\\ooo/",
     " === "};
 
-static int LARGURA_MIN = 0;
-static int LARGURA_MAX = 0;
+int LARGURA_MIN = 0;
+int LARGURA_MAX = 0;
 
-static const useconds_t TICK_USEC = 40000;
+// Tick dinâmico: começa lento e acelera
+#define TICK_START_USEC 80000 // 0.08 s por quadro (≈12.5 FPS)
+#define TICK_MIN_USEC 20000   // limite de 0.02 s (≈50 FPS)
+useconds_t tick_usec = TICK_START_USEC;
 
 // ----------------------------
-static void iniciarNcurses(void);
-static void finalizarNcurses(void);
-static void criarRioInicial(void);
-static void gerarNovaLinhaNoTopo(void);
-static void desenharTudo(const Player *p);
-static void desenharAviao(const Player *p);
-static int haColisao(const Player *p);
-static void ReiniciarInimigos(void);
-static void reiniciarJogo(Player *p);
+void iniciarNcurses(void);
+void finalizarNcurses(void);
+void criarRioInicial(void);
+void gerarNovaLinhaNoTopo(void);
+void desenharTudo(const Player *p);
+void desenharAviao(const Player *p);
+int haColisao(const Player *p);
+void ReiniciarInimigos(void);
+void reiniciarJogo(Player *p);
 // Tiros
-static void iniciarBalas(void);
-static void destruirBalas(void);
-static void disparar(const Player *p);
-static void atualizarBalas(void);
-static void desenharBalas(void);
+void iniciarBalas(void);
+void destruirBalas(void);
+void disparar(const Player *p);
+void atualizarBalas(void);
+void desenharBalas(void);
 // Gasolina
-static void ReiniciarGasolina(void);
+void ReiniciarGasolina(void);
 
 // ================================================================
 // MAIN
@@ -123,6 +126,7 @@ int main(void)
 
     int contadorSpawn = 0;
     int limiteSpawn = 20;
+    int fuelTick = 0; // conta ciclos para gastar combustível
 
     while (1)
     {
@@ -171,8 +175,7 @@ int main(void)
                         break;
                     }
                 }
-                    
-            }  
+            }
 
             // ======== GASOLINA DESCENDO =========
             for (int i = 0; i < GASOLINA_MAX; i++)
@@ -204,13 +207,24 @@ int main(void)
 
             jogador.score++;
 
+            if (jogador.score % 120 == 0 && tick_usec > TICK_MIN_USEC)
+            {
+                tick_usec -= 2000; // acelera um pouquinho
+                if (tick_usec < TICK_MIN_USEC)
+                    tick_usec = TICK_MIN_USEC;
+            }
+
             if (jogador.score % 500 == 0 && limiteSpawn > 3)
                 limiteSpawn--;
 
+<<<<<<< HEAD
             
             // Coleta gasolina com range
             #define RANGE_COLETA 2  // distância máxima para coletar combustível
 
+=======
+            // Coleta gasolina
+>>>>>>> 50f0ad82696c5e6dfab64e06055bf34cb7f5127b
             for (int i = 0; i < GASOLINA_MAX; i++)
             {
                 if (postos[i].vivo)
@@ -227,14 +241,29 @@ int main(void)
             }
 
             // Consome combustível
+<<<<<<< HEAD
             static int tick = 0;
             tick++;
             if (tick % 5 == 0)  // gasta 1 unidade a cada 5 ciclos
+=======
+            fuelTick++;
+            if (fuelTick >= 8) // gasta 1 unidade a cada 8 ciclos
+>>>>>>> 50f0ad82696c5e6dfab64e06055bf34cb7f5127b
             {
+                fuelTick = 0;
                 jogador.fuel--;
                 if (jogador.fuel <= 0)
                     jogador.vivo = 0;
             }
+<<<<<<< HEAD
+=======
+            if (jogador.fuel <= 0)
+                jogador.vivo = 0;
+
+            if (haColisao(&jogador))
+                jogador.vivo = 0;
+        }
+>>>>>>> 50f0ad82696c5e6dfab64e06055bf34cb7f5127b
         else
         {
             if (ch == 'r' || ch == 'R')
@@ -242,7 +271,7 @@ int main(void)
         }
 
         desenharTudo(&jogador);
-        usleep(TICK_USEC);
+        usleep(tick_usec);
     }
 
     finalizarNcurses();
@@ -252,9 +281,9 @@ int main(void)
 // ================================================================
 // BALAS
 // ================================================================
-static void iniciarBalas(void) { balas = NULL; }
+void iniciarBalas(void) { balas = NULL; }
 
-static void destruirBalas(void)
+void destruirBalas(void)
 {
     while (balas)
     {
@@ -264,7 +293,7 @@ static void destruirBalas(void)
     }
 }
 
-static void disparar(const Player *p)
+void disparar(const Player *p)
 {
     int narizX = p->x + AVIAO_W / 2;
     int startY = p->y - 1;
@@ -280,7 +309,7 @@ static void disparar(const Player *p)
     balas = b;
 }
 
-static void atualizarBalas(void)
+void atualizarBalas(void)
 {
     Bala **pp = &balas;
     while (*pp)
@@ -330,7 +359,7 @@ static void atualizarBalas(void)
     }
 }
 
-static void desenharBalas(void)
+void desenharBalas(void)
 {
     for (Bala *b = balas; b != NULL; b = b->prox)
     {
@@ -341,7 +370,7 @@ static void desenharBalas(void)
 // ================================================================
 // NCURSES E RIO
 // ================================================================
-static void iniciarNcurses(void)
+void iniciarNcurses(void)
 {
     initscr();
     cbreak();
@@ -372,7 +401,7 @@ static void iniciarNcurses(void)
     }
 }
 
-static void finalizarNcurses(void)
+void finalizarNcurses(void)
 {
     destruirBalas();
     endwin();
@@ -380,7 +409,7 @@ static void finalizarNcurses(void)
     free(margemDir);
 }
 
-static void criarRioInicial(void)
+void criarRioInicial(void)
 {
     int centro = LARGURA / 2;
     int larguraRio = LARGURA / 2;
@@ -400,7 +429,7 @@ static void criarRioInicial(void)
     }
 }
 
-static void gerarNovaLinhaNoTopo(void)
+void gerarNovaLinhaNoTopo(void)
 {
     for (int y = ALTURA - 1; y > 0; y--)
     {
@@ -443,7 +472,7 @@ static void gerarNovaLinhaNoTopo(void)
 // ================================================================
 // DESENHO
 // ================================================================
-static void desenharAviao(const Player *p)
+void desenharAviao(const Player *p)
 {
     for (int r = 0; r < AVIAO_H; r++)
     {
@@ -459,65 +488,100 @@ static void desenharAviao(const Player *p)
     }
 }
 
-static void desenharInimigo(const Inimigo *in)
+void desenharInimigo(const Inimigo *in)
 
 {
-   for (int r = 0; r < INIMIGO_H; r++)
-   {
-    int y = in->y + r;
-    if (y < 0 || y >= ALTURA) continue;
-
-    for (int c = 0; c < INIMIGO_W; c++)
+    for (int r = 0; r < INIMIGO_H; r++)
     {
-         char ch = INIMIGO[r][c];
-         if (ch == ' ')continue;
-         
-         int x = in-> x + c;
-         if (x >= 0 && x < LARGURA)
-            mvaddch(y,x,ch);
+        int y = in->y + r;
+        if (y < 0 || y >= ALTURA)
+            continue;
+
+        for (int c = 0; c < INIMIGO_W; c++)
+        {
+            char ch = INIMIGO[r][c];
+            if (ch == ' ')
+                continue;
+
+            int x = in->x + c;
+            if (x >= 0 && x < LARGURA)
+                mvaddch(y, x, ch);
+        }
     }
-   }
 }
 
-
-
-static void desenharTudo(const Player *p)
+void desenharTudo(const Player *p)
 {
-    erase();
+    erase();       // limpa a tela virtual (ncurses usa double-buffering)
+    start_color(); // Permite o uso de cores
+
+    init_pair(1, COLOR_GREEN, COLOR_BLACK);   // cor verde
+    init_pair(2, COLOR_YELLOW, COLOR_BLACK);  // cor amarelha
+    init_pair(3, COLOR_RED, COLOR_BLACK);     // cor vermelha
+    init_pair(4, COLOR_MAGENTA, COLOR_BLACK); // cor ciano
+    init_pair(5, COLOR_BLUE, COLOR_BLACK);
+    init_pair(6, COLOR_BLACK, COLOR_YELLOW);
 
     for (int y = 0; y < ALTURA; y++)
     {
         int L = margemEsq[y];
         int R = margemDir[y];
 
+        // Parte sólida à esquerda (margem + "terra" fora do rio)
+        attron(COLOR_PAIR(1));
         for (int x = 0; x <= L; x++)
+        {
             mvaddch(y, x, '#');
+        }
+        attroff(COLOR_PAIR(1));
+        // Parte de água do rio (espaços em branco)
+        attron(COLOR_PAIR(5));
         for (int x = L + 1; x < R; x++)
+        {
             mvaddch(y, x, ' ');
+        }
+        attroff(COLOR_PAIR(1));
+        // Parte sólida à direita
+        attron(COLOR_PAIR(1));
         for (int x = R; x < LARGURA; x++)
+        {
             mvaddch(y, x, '#');
+        }
+        attroff(COLOR_PAIR(1));
     }
 
+    // Desenha o inimigo
+    attron(COLOR_PAIR(3));
     for (int i = 0; i < INIMIGOS_MAX; i++)
     {
         if (inimigos[i].vivo)
             desenharInimigo(&inimigos[i]);
     }
+    attroff(COLOR_PAIR(3));
 
+    attron(COLOR_PAIR(4));
     for (int i = 0; i < GASOLINA_MAX; i++)
-{
-    if (postos[i].vivo)
     {
-        mvprintw(postos[i].y, postos[i].x, "[FUEL]");
+        if (postos[i].vivo)
+        {
+            mvprintw(postos[i].y, postos[i].x, "[FUEL]");
+        }
     }
-}
+    attroff(COLOR_PAIR(4));
 
-    desenharBalas();
+    attron(COLOR_PAIR(2));
+    desenharBalas(); // desenha todas as balas na tela
+    attroff(COLOR_PAIR(2));
+
+    attron(COLOR_PAIR(2));
     desenharAviao(p);
+    attroff(COLOR_PAIR(2));
 
+    attron(COLOR_PAIR(6));
     mvprintw(0, 2, "SCORE: %ld  FUEL: %d  %s  | ESPACO=tiro  Q=sair",
              p->score, p->fuel,
              p->vivo ? "" : "[MORREU — R=recomecar]");
+    attroff(COLOR_PAIR(6));
 
     refresh();
 }
@@ -525,7 +589,7 @@ static void desenharTudo(const Player *p)
 // ================================================================
 // COLISÃO E RESET
 // ================================================================
-static int haColisao(const Player *p)
+int haColisao(const Player *p)
 {
     for (int r = 0; r < AVIAO_H; r++)
     {
@@ -557,10 +621,10 @@ static int haColisao(const Player *p)
             for (int i = 0; i < INIMIGOS_MAX; i++)
             {
                 if (inimigos[i].vivo &&
-                    x >= inimigos[i].x && 
+                    x >= inimigos[i].x &&
                     x < inimigos[i].x + INIMIGO_W &&
                     y >= inimigos[i].y &&
-                    y < inimigos[i].y +INIMIGO_H)
+                    y < inimigos[i].y + INIMIGO_H)
                     return 1;
             }
         }
@@ -569,8 +633,9 @@ static int haColisao(const Player *p)
     return 0;
 }
 
-static void reiniciarJogo(Player *p)
+void reiniciarJogo(Player *p)
 {
+    tick_usec = TICK_START_USEC;
     destruirBalas();
     iniciarBalas();
     criarRioInicial();
@@ -583,13 +648,13 @@ static void reiniciarJogo(Player *p)
     ReiniciarGasolina();
 }
 
-static void ReiniciarInimigos(void)
+void ReiniciarInimigos(void)
 {
     for (int i = 0; i < INIMIGOS_MAX; i++)
         inimigos[i].vivo = 0;
 }
 
-static void ReiniciarGasolina(void)
+void ReiniciarGasolina(void)
 {
     for (int i = 0; i < GASOLINA_MAX; i++)
         postos[i].vivo = 0;

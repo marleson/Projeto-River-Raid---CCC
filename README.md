@@ -1,253 +1,144 @@
-[river_raid_gasolina.c](https://github.com/user-attachments/files/22317810/river_raid_gasolina.c)
-// ================================================================
-// River Raid (versão de terminal) — C + ncurses
-// NÍVEL: Iniciante 
-// Objetivo: Criar um jogo simples de River Raid no terminal usando C e ncurses.
-//           Agora com gasolina aparecendo de vez em quando.
-// Controles: ←/→  ou  A/D  para mover;  R para reiniciar;  Q para sair
-// Compilar:
-//     gcc river_raid.c -o river_raid -lncurses
-// Executar:
-//     ./river_raid
-// ================================================================
+# River Raid (Terminal) — C + ncurses
 
-#include <ncurses.h> 
-#include <stdlib.h>  
-#include <time.h>    
-#include <unistd.h>  
+Um clone didático do River Raid rodando **no terminal**, escrito em **C** usando **ncurses**. O objetivo é pilotar o avião pelo rio, desviando das margens e de inimigos, gerenciando o combustível e abatendo ameaças com tiros.
 
-// ----------------------------
-// ESTRUTURAS DE DADOS
-// ----------------------------
-typedef struct {
-    int x;
-    int y;
-    int vivo;
-    long score;
-    int gasolina; // 0 a 100 (%)
-} Player;
+> Projeto pensado para estudantes de **primeiro ano**: funções curtas, código comentado e arquitetura direta.&#x20;
 
-typedef struct {
-    int x;
-    int y;
-    int ativo; // 1 = aparece, 0 = não existe
-} Gasolina;
+## ✨ Recursos
 
-// ----------------------------
-// VARIÁVEIS GLOBAIS
-// ----------------------------
-static int LARGURA = 0;
-static int ALTURA = 0;
+* Jogo 2D em modo texto com **ncurses**
+* Avião do jogador em **ASCII 3×5**
+* Inimigos em **ASCII 3×5** (descem a tela)
+* **Tiros ilimitados** (lista ligada)
+* **Combustível** que diminui com o tempo e **coleta** de `[FUEL]`
+* **Rio procedural** com margens variando suavemente
+* **Dificuldade dinâmica**: acelera conforme o score aumenta
 
-static int *margemEsq = NULL;
-static int *margemDir = NULL;
+## 🎮 Controles
 
-static int LARGURA_MIN = 0;
-static int LARGURA_MAX = 0;
+* **Mover**: `←`/`→` ou `A`/`D`
+* **Atirar**: `ESPAÇO`
+* **Reiniciar**: `R`
+* **Sair**: `Q`
 
-static const useconds_t TICK_USEC = 60000; // velocidade do jogo
+## 🧰 Dependências
 
-// ----------------------------
-// PROTÓTIPOS
-// ----------------------------
-static void iniciarNcurses(void);
-static void finalizarNcurses(void);
-static void criarRioInicial(void);
-static void gerarNovaLinhaNoTopo(Gasolina *g);
-static void desenharTudo(const Player *p, const Gasolina *g);
-static int haColisao(const Player *p);
-static void reiniciarJogo(Player *p, Gasolina *g);
+* **C toolchain** (Clang ou GCC)
+* **ncurses** (já vem no macOS e na maioria das distros Linux)
 
-// ================================================================
-// MAIN
-// ================================================================
-int main(void) {
-    srand((unsigned)time(NULL));
-    iniciarNcurses();
+## 🛠️ Como compilar
 
-    Player jogador;
-    Gasolina gas;
-    reiniciarJogo(&jogador, &gas);
+### macOS (Clang)
 
-    while (1) {
-        int ch = getch();
+```bash
+# normalmente basta:
+clang -std=c11 -Wall -Wextra -O2 river_raid.c -lncurses -o river_raid
+```
 
-        if (ch == 'q' || ch == 'Q')
-            break;
+Se o seu mac não linkar a `ncurses` do sistema, use a do Homebrew:
 
-        if (jogador.vivo) {
-            if (ch == KEY_LEFT || ch == 'a' || ch == 'A') jogador.x--;
-            if (ch == KEY_RIGHT || ch == 'd' || ch == 'D') jogador.x++;
+```bash
+brew install ncurses
 
-            if (jogador.x < 1) jogador.x = 1;
-            if (jogador.x > LARGURA - 2) jogador.x = LARGURA - 2;
+clang -std=c11 -Wall -Wextra -O2 \
+  -I"$(brew --prefix)/opt/ncurses/include" \
+  -L"$(brew --prefix)/opt/ncurses/lib" \
+  -Wl,-rpath,"$(brew --prefix)/opt/ncurses/lib" \
+  river_raid.c -lncurses -o river_raid
+```
 
-            gerarNovaLinhaNoTopo(&gas);
-            jogador.score++;
+### Linux (GCC/Clang)
 
-            // Consome gasolina a cada linha
-            if (jogador.gasolina > 0) jogador.gasolina--;
-            else jogador.vivo = 0;
+```bash
+gcc -std=c11 -Wall -Wextra -O2 river_raid.c -lncurses -o river_raid
+# ou
+clang -std=c11 -Wall -Wextra -O2 river_raid.c -lncurses -o river_raid
+```
 
-            // Colisão com margens
-            if (haColisao(&jogador)) jogador.vivo = 0;
+## ▶️ Como executar
 
-            // Coleta gasolina
-            if (gas.ativo && gas.x == jogador.x && gas.y == jogador.y) {
-                jogador.gasolina += 30; // recarrega
-                if (jogador.gasolina > 100) jogador.gasolina = 100;
-                gas.ativo = 0;
-            }
-        } else {
-            if (ch == 'r' || ch == 'R')
-                reiniciarJogo(&jogador, &gas);
-        }
+```bash
+./river_raid
+```
 
-        desenharTudo(&jogador, &gas);
-        usleep(TICK_USEC);
-    }
+## 🗂️ Organização do código
 
-    finalizarNcurses();
-    return 0;
-}
+Projeto em **arquivo único**: `river_raid.c`.
 
-// ================================================================
-// IMPLEMENTAÇÃO DAS FUNÇÕES
-// ================================================================
-static void iniciarNcurses(void) {
-    initscr();
-    cbreak();
-    noecho();
-    curs_set(0);
-    keypad(stdscr, TRUE);
-    nodelay(stdscr, TRUE);
+Principais blocos/funções:
 
-    getmaxyx(stdscr, ALTURA, LARGURA);
+* **Inicialização/loop**: `iniciarNcurses`, `finalizarNcurses`, `reiniciarJogo`, `main`
+* **Mundo (rio)**: `criarRioInicial`, `gerarNovaLinhaNoTopo`, vetores `margemEsq/margemDir`
+* **Desenho**: `desenharTudo`, `desenharAviao`, `desenharInimigo`, `desenharBalas`
+* **Jogador**: struct `Player` (pos, vivo, score, fuel) e `haColisao`
+* **Inimigos**: array `inimigos[INIMIGOS_MAX]`, spawn/descida simples
+* **Tiros**: lista ligada `Bala`, com `disparar`, `atualizarBalas`, `destruirBalas`
+* **Combustível**: `postos[GASOLINA_MAX]` com texto `[FUEL]` descendo a tela
 
-    if (ALTURA < 20 || LARGURA < 40) {
-        endwin();
-        fprintf(stderr, "Aumente o terminal para pelo menos 40x20.\n");
-        exit(1);
-    }
+*(O arquivo contém comentários didáticos em quase todas as funções.)*&#x20;
 
-    LARGURA_MIN = LARGURA / 3;
-    LARGURA_MAX = LARGURA / 2;
+## ⚙️ Ajustando dificuldade e comportamento
 
-    margemEsq = (int*)malloc(sizeof(int) * ALTURA);
-    margemDir = (int*)malloc(sizeof(int) * ALTURA);
-    if (!margemEsq || !margemDir) {
-        endwin();
-        fprintf(stderr, "Falha ao alocar memória.\n");
-        exit(1);
-    }
-}
+Abra `river_raid.c` e altere:
 
-static void finalizarNcurses(void) {
-    endwin();
-    free(margemEsq);
-    free(margemDir);
-}
+* **Velocidade do jogo** (aceleração automática):
 
-static void criarRioInicial(void) {
-    int centro = LARGURA / 2;
-    int larguraRio = LARGURA / 2;
-    if (larguraRio < LARGURA_MIN) larguraRio = LARGURA_MIN;
-    if (larguraRio > LARGURA_MAX) larguraRio = LARGURA_MAX;
+  ```c
+  #define TICK_START_USEC 80000  // mais alto = mais devagar no início
+  #define TICK_MIN_USEC   20000  // mais baixo = mais rápido no máximo
+  // Em main(): jogo acelera um pouco a cada 120 pontos
+  ```
+* **Densidade de inimigos**:
 
-    int metade = larguraRio / 2;
-    int L = centro - metade;
-    int R = centro + metade;
+  ```c
+  int limiteSpawn = 20;          // menor valor = nascem com mais frequência
+  // Em main(): diminui a cada 500 pontos (mais difíceis com o tempo)
+  ```
+* **Largura do rio**:
 
-    for (int y = 0; y < ALTURA; y++) {
-        margemEsq[y] = L;
-        margemDir[y] = R;
-    }
-}
+  ```c
+  LARGURA_MIN = LARGURA / 3;
+  LARGURA_MAX = LARGURA / 2;     // ajuste para rios mais largos/estreitos
+  ```
+* **Sprites ASCII**:
 
-static void gerarNovaLinhaNoTopo(Gasolina *g) {
-    for (int y = ALTURA - 1; y > 0; y--) {
-        margemEsq[y] = margemEsq[y - 1];
-        margemDir[y] = margemDir[y - 1];
-    }
+  ```c
+  const char *AVIAO[3] = { "  ^  ", "<-A->", " / \\ " };
+  const char *INIMIGO[3] = { " | | ", "\\ooo/", " === " };
+  ```
 
-    int Lant = margemEsq[0];
-    int Rant = margemDir[0];
-    int centroAnt = (Lant + Rant) / 2;
-    int larguraAnt = (Rant - Lant);
+  Mude as strings mantendo a **mesma largura/altura** (ou atualize `AVIAO_W/H`, `INIMIGO_W/H`).
 
-    int centroNovo = centroAnt + (rand() % 3 - 1);
-    int larguraNova = larguraAnt + (rand() % 3 - 1);
+## 🧪 Regras de colisão (resumo)
 
-    if (larguraNova < LARGURA_MIN) larguraNova = LARGURA_MIN;
-    if (larguraNova > LARGURA_MAX) larguraNova = LARGURA_MAX;
+* **Avião vs margens**: morre se **qualquer caractere** não-vazio do sprite encostar na margem.
+* **Avião vs inimigo**: morre se **qualquer parte** do avião sobrepor o **retângulo** do inimigo.
+* **Bala vs inimigo**: ao colidir, **remove** o inimigo e a bala.&#x20;
 
-    int metade = larguraNova / 2;
-    int Lnovo = centroNovo - metade;
-    int Rnovo = centroNovo + metade;
+## 🛤️ Roadmap sugerido
 
-    if (Lnovo < 1) { Lnovo = 1; Rnovo = Lnovo + larguraNova; }
-    if (Rnovo > LARGURA - 2) { Rnovo = LARGURA - 2; Lnovo = Rnovo - larguraNova; }
+* **Mapa mais “Atari-like”**: fases cíclicas (reto → ilha → canal estreito → reto)
+* **Coleta de `[FUEL]` por área**: usar colisão retangular (AABB) no pickup (hoje coleta pelo ponto de origem)
+* **Pontuação por abate** e **HUD** mais completo
+* **Pausa** e **telas** de Menu/Game Over
+* **Sons** (beep simples) e partículas ASCII
+* **Modularização** em múltiplos arquivos (`player.c`, `world.c`, `bullets.c`…)
 
-    margemEsq[0] = Lnovo;
-    margemDir[0] = Rnovo;
+## ❗ Observações
 
-    // gasolina aparece no topo às vezes
-    if (!g->ativo && rand() % 25 == 0) {
-        g->x = Lnovo + 1 + rand() % (larguraNova - 2);
-        g->y = 0;
-        g->ativo = 1;
-    } else if (g->ativo) {
-        g->y++;
-        if (g->y >= ALTURA) g->ativo = 0;
-    }
-}
+* Certifique-se de que seu terminal está grande o suficiente (mínimo **40×20**).
+* Em terminais sem suporte a cor, o jogo ainda funciona (só sem paleta).
+* Em alguns ambientes macOS, pode ser necessário usar a `ncurses` do Homebrew (com `-I`/`-L`).
 
-static void desenharTudo(const Player *p, const Gasolina *g) {
-    erase();
+## 📄 Licença
 
-    for (int y = 0; y < ALTURA; y++) {
-        int L = margemEsq[y];
-        int R = margemDir[y];
+Este projeto está licenciado sob **Creative Commons Attribution 4.0 International (CC BY 4.0)**.
 
-        for (int x = 0; x <= L; x++) mvaddch(y, x, '#');
-        for (int x = L + 1; x < R; x++) mvaddch(y, x, ' ');
-        for (int x = R; x < LARGURA; x++) mvaddch(y, x, '#');
-    }
+Você **pode** copiar, redistribuir, remixar, transformar e criar a partir deste trabalho (inclusive para fins comerciais) **desde que** forneça **atribuição adequada** ao autor, inclua um link para a licença e indique se foram feitas alterações. Não são permitidas restrições adicionais que contrariem os termos da licença.
 
-    if (p->vivo) mvaddch(p->y, p->x, '^');
-    else mvaddch(p->y, p->x, 'X');
+**Atribuição sugerida**  
+“*River Raid (Terminal) — C + ncurses*, por **Márleson Rôndiner dos Santos Ferreira** (2025), licenciado sob **CC BY 4.0**.”
 
-    if (g->ativo) mvaddch(g->y, g->x, 'G');
+> Dica: Se você reutilizar trechos de código, mantenha o aviso de licença e a atribuição no seu README ou nos cabeçalhos dos arquivos.
 
-    mvprintw(0, 2, "SCORE: %ld", p->score);
 
-    // barra de gasolina
-    int barraLen = 20;
-    int cheio = (p->gasolina * barraLen) / 100;
-    mvprintw(1, 2, "GASOLINA: [");
-    for (int i = 0; i < barraLen; i++) {
-        if (i < cheio) addch('|');
-        else addch(' ');
-    }
-    addch(']');
-    mvprintw(1, 25, "%d%%", p->gasolina);
-
-    if (!p->vivo)
-        mvprintw(2, 2, "[MORREU - pressione R para reiniciar]");
-
-    refresh();
-}
-
-static int haColisao(const Player *p) {
-    return (p->x <= margemEsq[p->y]) || (p->x >= margemDir[p->y]);
-}
-
-static void reiniciarJogo(Player *p, Gasolina *g) {
-    criarRioInicial();
-    p->x = LARGURA / 2;
-    p->y = ALTURA - 4;
-    p->vivo = 1;
-    p->score = 0;
-    p->gasolina = 100;
-    g->ativo = 0;
-}
